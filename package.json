@@ -1,0 +1,9 @@
+{
+  "name": "my-first-webserver",
+  "version": "1.0.0",
+  "description": "Basic Web Server for Students",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
