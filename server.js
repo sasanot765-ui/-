@@ -3,11 +3,46 @@ const http = require('http');
 // กำหนด Port ที่ Server จะเปิดใช้งาน (Render จะกำหนดค่านี้ให้ผ่าน process.env.PORT)
 const PORT = process.env.PORT || 3000;
 
+// --- พื้นหลังภาพจริงแบบ SVG (ทิวทัศน์คืนหิมะ: ท้องฟ้า, ดวงจันทร์, ดวงดาว, ภูเขา) ---
+// ฝังเป็น data URI ในตัว ไม่ต้องพึ่งลิงก์ภายนอก โหลดไวและไม่มีวันลิงก์เสีย
+const bgSvg = `
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900'>
+  <defs>
+    <linearGradient id='sky' x1='0' y1='0' x2='0' y2='1'>
+      <stop offset='0%' stop-color='%230f172a'/>
+      <stop offset='45%' stop-color='%231e3a5f'/>
+      <stop offset='100%' stop-color='%23335c81'/>
+    </linearGradient>
+  </defs>
+  <rect width='1600' height='900' fill='url(%23sky)'/>
+  <circle cx='1320' cy='150' r='95' fill='%23f1f5f9' opacity='0.12'/>
+  <circle cx='1320' cy='150' r='65' fill='%23f8fafc' opacity='0.95'/>
+  <circle cx='120' cy='80' r='2' fill='white' opacity='0.8'/>
+  <circle cx='260' cy='140' r='1.6' fill='white' opacity='0.7'/>
+  <circle cx='400' cy='60' r='2.2' fill='white' opacity='0.9'/>
+  <circle cx='560' cy='160' r='1.5' fill='white' opacity='0.6'/>
+  <circle cx='720' cy='90' r='2' fill='white' opacity='0.8'/>
+  <circle cx='880' cy='50' r='1.8' fill='white' opacity='0.7'/>
+  <circle cx='1000' cy='180' r='1.5' fill='white' opacity='0.6'/>
+  <circle cx='150' cy='260' r='1.4' fill='white' opacity='0.5'/>
+  <circle cx='620' cy='230' r='1.6' fill='white' opacity='0.6'/>
+  <circle cx='980' cy='300' r='1.3' fill='white' opacity='0.5'/>
+  <circle cx='1450' cy='90' r='1.8' fill='white' opacity='0.7'/>
+  <circle cx='60' cy='200' r='1.5' fill='white' opacity='0.6'/>
+  <polygon points='0,900 0,640 260,480 560,680 880,430 1180,630 1600,520 1600,900' fill='%2314213d' opacity='0.9'/>
+  <polygon points='0,900 0,760 380,650 760,800 1160,690 1600,770 1600,900' fill='%230b1626'/>
+  <polygon points='90,900 150,780 210,900' fill='%230b1626'/>
+  <polygon points='260,900 320,760 380,900' fill='%23132038'/>
+  <polygon points='1250,900 1310,770 1370,900' fill='%230b1626'/>
+  <polygon points='1420,900 1480,800 1540,900' fill='%23132038'/>
+</svg>
+`.trim().replace(/\s+/g, ' ');
+
 const server = http.createServer((req, res) => {
     // 1. ตั้งค่า Header ให้ตอบกลับเป็นตัวอักษรแบบ UTF-8
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
 
-    // 2. ข้อมูลที่จะส่งกลับไป (Response) — เหลือแค่พื้นหลังหิมะตก (canvas) + การ์ดข้อมูล
+    // 2. ข้อมูลที่จะส่งกลับไป (Response) — พื้นหลังภาพหิมะยามค่ำคืน + หิมะตก (canvas) + ปุ่มควบคุม + การ์ดข้อมูล
     res.write(`
         <!DOCTYPE html>
         <html lang="th">
@@ -31,8 +66,10 @@ const server = http.createServer((req, res) => {
                 }
 
                 body {
-                    /* พื้นหลังไล่โทนสีฟ้าไอซ์บลูและเทาพาสเทลแบบฤดูหนาว */
-                    background: linear-gradient(135deg, #e0f2fe 0%, #f1f5f9 50%, #e0e7ff 100%);
+                    background-image: url("data:image/svg+xml,${bgSvg}");
+                    background-size: cover;
+                    background-position: center bottom;
+                    background-attachment: fixed;
                     color: #334155;
                     font-family: 'Fira Code', 'Sarabun', monospace, sans-serif;
                     display: flex;
@@ -40,6 +77,11 @@ const server = http.createServer((req, res) => {
                     align-items: center;
                     height: 100vh;
                     position: relative;
+                    transition: filter 0.5s ease;
+                }
+
+                body.light-theme {
+                    filter: brightness(1.25) saturate(0.9);
                 }
 
                 /* --- เอฟเฟกต์หิมะตก (Canvas Snowfall) --- */
@@ -51,6 +93,43 @@ const server = http.createServer((req, res) => {
                     height: 100%;
                     pointer-events: none;
                     z-index: 1;
+                }
+
+                /* --- ปุ่มควบคุม --- */
+                #controlBar {
+                    position: fixed;
+                    top: 25px;
+                    right: 25px;
+                    display: flex;
+                    gap: 12px;
+                    z-index: 4;
+                }
+
+                .control-btn {
+                    width: 46px;
+                    height: 46px;
+                    border-radius: 50%;
+                    border: 1.5px solid rgba(255, 255, 255, 0.6);
+                    background: rgba(255, 255, 255, 0.35);
+                    backdrop-filter: blur(10px);
+                    -webkit-backdrop-filter: blur(10px);
+                    font-size: 20px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+                }
+
+                .control-btn:hover {
+                    background: rgba(255, 255, 255, 0.55);
+                    transform: scale(1.1);
+                }
+
+                .control-btn.active {
+                    background: rgba(56, 189, 248, 0.55);
+                    border-color: #38bdf8;
                 }
 
                 /* --- การ์ดสไตล์กระจกฝ้า (Glassmorphism Frosted Card) --- */
@@ -151,6 +230,11 @@ const server = http.createServer((req, res) => {
         <body>
             <canvas id="snowCanvas"></canvas>
 
+            <div id="controlBar">
+                <button class="control-btn active" id="snowToggle" title="เปิด/ปิด หิมะตก">❄️</button>
+                <button class="control-btn" id="themeToggle" title="สลับธีม">🌙</button>
+            </div>
+
             <div class="card">
                 <h1>❄️ Welcome to My Server</h1>
 
@@ -171,69 +255,86 @@ const server = http.createServer((req, res) => {
             </div>
 
             <script>
-                // --- ระบบหิมะตกแบบ Canvas (เบา เรียบง่าย ไม่มีปุ่ม/ตัวควบคุมใดๆ) ---
-                (function () {
-                    const canvas = document.getElementById('snowCanvas');
-                    const ctx = canvas.getContext('2d');
-                    let snowflakes = [];
-                    const COUNT = 120;
+                // --- ระบบหิมะตกแบบ Canvas ---
+                const canvas = document.getElementById('snowCanvas');
+                const ctx = canvas.getContext('2d');
+                let snowflakes = [];
+                let snowEnabled = true;
+                let animId = null;
+                const COUNT = 120;
 
-                    function resize() {
-                        canvas.width = window.innerWidth;
-                        canvas.height = window.innerHeight;
+                function resize() {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                }
+
+                function createSnowflakes() {
+                    snowflakes = [];
+                    for (let i = 0; i < COUNT; i++) {
+                        snowflakes.push({
+                            x: Math.random() * canvas.width,
+                            y: Math.random() * canvas.height,
+                            radius: Math.random() * 2.5 + 0.5,
+                            speedX: Math.random() * 1.2 - 0.6,
+                            speedY: Math.random() * 1.5 + 0.8,
+                            opacity: Math.random() * 0.6 + 0.3
+                        });
                     }
+                }
 
-                    function createSnowflakes() {
-                        snowflakes = [];
-                        for (let i = 0; i < COUNT; i++) {
-                            snowflakes.push({
-                                x: Math.random() * canvas.width,
-                                y: Math.random() * canvas.height,
-                                radius: Math.random() * 2.5 + 0.5,
-                                speedX: Math.random() * 1.2 - 0.6,
-                                speedY: Math.random() * 1.5 + 0.8,
-                                opacity: Math.random() * 0.6 + 0.3
-                            });
-                        }
+                function update(flake) {
+                    flake.x += flake.speedX;
+                    flake.y += flake.speedY;
+
+                    if (flake.x < -10) flake.x = canvas.width + 10;
+                    if (flake.x > canvas.width + 10) flake.x = -10;
+                    if (flake.y > canvas.height) {
+                        flake.y = -10;
+                        flake.x = Math.random() * canvas.width;
                     }
+                }
 
-                    function update(flake) {
-                        flake.x += flake.speedX;
-                        flake.y += flake.speedY;
+                function draw(flake) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, ' + flake.opacity + ')';
+                    ctx.beginPath();
+                    ctx.arc(flake.x, flake.y, flake.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
 
-                        if (flake.x < -10) flake.x = canvas.width + 10;
-                        if (flake.x > canvas.width + 10) flake.x = -10;
-                        if (flake.y > canvas.height) {
-                            flake.y = -10;
-                            flake.x = Math.random() * canvas.width;
-                        }
-                    }
-
-                    function draw(flake) {
-                        ctx.fillStyle = 'rgba(56, 189, 248, ' + flake.opacity + ')';
-                        ctx.beginPath();
-                        ctx.arc(flake.x, flake.y, flake.radius, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-
-                    function animate() {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                function animate() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    if (snowEnabled) {
                         for (const flake of snowflakes) {
                             update(flake);
                             draw(flake);
                         }
-                        requestAnimationFrame(animate);
                     }
+                    animId = requestAnimationFrame(animate);
+                }
 
-                    window.addEventListener('resize', () => {
-                        resize();
-                        createSnowflakes();
-                    });
-
+                window.addEventListener('resize', () => {
                     resize();
                     createSnowflakes();
-                    animate();
-                })();
+                });
+
+                resize();
+                createSnowflakes();
+                animate();
+
+                // --- ปุ่มควบคุม ---
+                const snowToggle = document.getElementById('snowToggle');
+                const themeToggle = document.getElementById('themeToggle');
+
+                snowToggle.addEventListener('click', () => {
+                    snowEnabled = !snowEnabled;
+                    snowToggle.classList.toggle('active', snowEnabled);
+                });
+
+                themeToggle.addEventListener('click', () => {
+                    const isLight = document.body.classList.toggle('light-theme');
+                    themeToggle.textContent = isLight ? '☀️' : '🌙';
+                    themeToggle.classList.toggle('active', isLight);
+                });
             </script>
         </body>
         </html>
