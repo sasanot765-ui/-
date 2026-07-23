@@ -9,13 +9,18 @@ const pool = new Pool({
 
 const port = process.env.PORT || 3000;
 
-// ฟังก์ชันเตรียมตารางและข้อมูลตั้งต้น (รันครั้งเดียวตอน server เริ่มทำงาน)
+// ฟังก์ชันเตรียมฐานข้อมูล: ลบตารางเก่า (ถ้ามี) แล้วสร้างใหม่ให้ตรงกับโค้ด
+// พร้อมเพิ่มข้อมูลนักศึกษาตั้งต้น
 async function setupDatabase() {
   const client = await pool.connect();
   try {
-    // สร้างตารางถ้ายังไม่มี
+    // ลบตารางเก่าทิ้งก่อน เผื่อโครงสร้าง/ชื่อคอลัมน์เดิมไม่ตรงกัน
+    // (คำเตือน: คำสั่งนี้จะลบข้อมูลเดิมในตาราง students ทั้งหมด)
+    await client.query(`DROP TABLE IF EXISTS students`);
+
+    // สร้างตารางใหม่ให้มีคอลัมน์ตรงกับที่โค้ดใช้งาน
     await client.query(`
-      CREATE TABLE IF NOT EXISTS students (
+      CREATE TABLE students (
         student_id VARCHAR(20) PRIMARY KEY,
         student_name VARCHAR(255) NOT NULL
       )
