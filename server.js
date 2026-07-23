@@ -9,39 +9,6 @@ const pool = new Pool({
 
 const port = process.env.PORT || 3000;
 
-// ฟังก์ชันเตรียมฐานข้อมูล: ลบตารางเก่า (ถ้ามี) แล้วสร้างใหม่ให้ตรงกับโค้ด
-// พร้อมเพิ่มข้อมูลนักศึกษาตั้งต้น
-async function setupDatabase() {
-  const client = await pool.connect();
-  try {
-    // ลบตารางเก่าทิ้งก่อน เผื่อโครงสร้าง/ชื่อคอลัมน์เดิมไม่ตรงกัน
-    // (คำเตือน: คำสั่งนี้จะลบข้อมูลเดิมในตาราง students ทั้งหมด)
-    await client.query(`DROP TABLE IF EXISTS students`);
-
-    // สร้างตารางใหม่ให้มีคอลัมน์ตรงกับที่โค้ดใช้งาน
-    await client.query(`
-      CREATE TABLE students (
-        student_id VARCHAR(20) PRIMARY KEY,
-        student_name VARCHAR(255) NOT NULL
-      )
-    `);
-
-    // เพิ่มข้อมูลนักศึกษา (ถ้ามี student_id นี้อยู่แล้วจะไม่เพิ่มซ้ำ)
-    await client.query(
-      `INSERT INTO students (student_id, student_name)
-       VALUES ($1, $2)
-       ON CONFLICT (student_id) DO NOTHING`,
-      ['69319011159', 'มานะเพชร ขันเงิน']
-    );
-
-    console.log('Database setup complete.');
-  } catch (err) {
-    console.error('Setup error:', err.message);
-  } finally {
-    client.release();
-  }
-}
-
 const server = http.createServer(async (req, res) => {
   res.statusCode = 200;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -49,20 +16,125 @@ const server = http.createServer(async (req, res) => {
   let client;
   try {
     // 3. ขอเชื่อมต่อและส่งคำสั่ง SQL ไปดึงข้อมูลจากตาราง students
+    // (ตารางนี้สร้างและใส่ข้อมูลไว้แล้วผ่าน Railway UI)
     client = await pool.connect();
     const result = await client.query('SELECT * FROM students ORDER BY student_id');
 
-    // 4. นำข้อมูลที่ได้ (result.rows) มาประกอบเป็นตาราง HTML
-    let html = `<h1>ฐานข้อมูลนักศึกษา (ทดสอบการเชื่อมต่อ)</h1>`;
-    html += `<table border="1" cellpadding="10">`;
-    html += `<tr><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th></tr>`;
-
-    // วนลูปนำข้อมูลแต่ละแถวมาแสดง
-    result.rows.forEach(row => {
-      html += `<tr><td>${row.student_id}</td><td>${row.student_name}</td></tr>`;
+    // 4. นำข้อมูลที่ได้ (result.rows) มาประกอบเป็นตาราง HTML พร้อมตกแต่งด้วย CSS
+    let rows = '';
+    result.rows.forEach((row, index) => {
+      rows += `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${row.student_id}</td>
+          <td>${row.student_name}</td>
+        </tr>`;
     });
 
-    html += `</table>`;
+    const html = `
+      <!DOCTYPE html>
+      <html lang="th">
+      <head>
+        <meta charset="UTF-8">
+        <title>ฐานข้อมูลนักศึกษา</title>
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+          body {
+            margin: 0;
+            padding: 40px 20px;
+            font-family: 'Segoe UI', 'Tahoma', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+          .container {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 32px 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            max-width: 700px;
+            width: 100%;
+          }
+          h1 {
+            text-align: center;
+            color: #4a2f7a;
+            margin-bottom: 8px;
+            font-size: 26px;
+          }
+          p.subtitle {
+            text-align: center;
+            color: #888;
+            margin-top: 0;
+            margin-bottom: 24px;
+            font-size: 14px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            overflow: hidden;
+            border-radius: 10px;
+          }
+          thead tr {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+          }
+          th, td {
+            padding: 14px 16px;
+            text-align: left;
+          }
+          th {
+            font-size: 14px;
+            letter-spacing: 0.5px;
+          }
+          tbody tr {
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+          }
+          tbody tr:nth-child(even) {
+            background: #f7f5fb;
+          }
+          tbody tr:hover {
+            background: #ece6fb;
+          }
+          td:first-child {
+            color: #999;
+            font-weight: bold;
+            width: 40px;
+          }
+          footer {
+            text-align: center;
+            color: rgba(255,255,255,0.85);
+            margin-top: 20px;
+            font-size: 13px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>📚 ฐานข้อมูลนักศึกษา</h1>
+          <p class="subtitle">ทดสอบการเชื่อมต่อฐานข้อมูล PostgreSQL บน Railway</p>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>รหัสนักศึกษา</th>
+                <th>ชื่อ-นามสกุล</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+        <footer>เชื่อมต่อฐานข้อมูลสำเร็จ ✅ | จำนวนนักศึกษา: ${result.rows.length} คน</footer>
+      </body>
+      </html>
+    `;
+
     res.end(html);
   } catch (err) {
     // กรณีเชื่อมต่อไม่ได้หรือเขียนชื่อตารางผิด
@@ -74,9 +146,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// เตรียมฐานข้อมูลก่อน แล้วค่อยเปิด server
-setupDatabase().then(() => {
-  server.listen(port, () => {
-    console.log(`Server is running on port: ${port}`);
-  });
+server.listen(port, () => {
+  console.log(`Server is running on port: ${port}`);
 });
